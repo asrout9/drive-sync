@@ -4,6 +4,7 @@
         xmlns:views="clr-namespace:DriveSync.App.Views"
         xmlns:vms="clr-namespace:DriveSync.App.ViewModels"
         Title="DriveSync — Two-Way Synchronizer"
+        Icon="pack://application:,,,/Assets/app.ico"
         Height="780" Width="1200"
         MinHeight="650" MinWidth="950"
         WindowStartupLocation="CenterScreen"

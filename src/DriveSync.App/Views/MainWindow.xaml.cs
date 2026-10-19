@@ -12,6 +12,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+        try
+        {
+            Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/app.ico"));
+        }
+        catch { }
     }
 
     public void ForceClose()

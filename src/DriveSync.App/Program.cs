@@ -6,13 +6,22 @@ namespace DriveSync.App;
 public static class Program
 {
     private const int ATTACH_PARENT_PROCESS = -1;
+    public const string AppUserModelId = "DriveSync.TwoWaySynchronizer.1.0";
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AttachConsole(int dwProcessId);
 
+    [DllImport("shell32.dll", SetLastError = true)]
+    private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
     [STAThread]
     public static void Main(string[] args)
     {
+        try
+        {
+            SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
+        }
+        catch { }
         // Try attaching to the parent terminal console if run from CLI
         bool attachedToConsole = AttachConsole(ATTACH_PARENT_PROCESS);
 

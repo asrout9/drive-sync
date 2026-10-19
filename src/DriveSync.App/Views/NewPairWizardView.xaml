@@ -230,14 +230,68 @@
                         </Border>
 
                         <!-- Mandatory explicit confirmation -->
-                        <Border Background="#450A0A" BorderBrush="#991B1B" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,16">
+                        <Border Background="#450A0A" BorderBrush="#991B1B" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,14">
                             <StackPanel>
                                 <TextBlock Text="MANDATORY CONFIRMATION BEFORE FIRST SYNC" FontWeight="Bold" FontSize="12" Foreground="#FCA5A5"/>
                                 <CheckBox IsChecked="{Binding HasConfirmedFirstSync}" Content="I understand that DriveSync is a two-way synchronization tool. Changes and configured deletions in either location will propagate bidirectionally. I authorize initial synchronization." Foreground="#FEE2E2" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,0"/>
                             </StackPanel>
                         </Border>
 
-                        <Button Content="Confirm and Activate Sync Pair" Command="{Binding ConfirmAndSavePairCommand}" Background="#16A34A" Foreground="White" FontWeight="Bold" BorderThickness="0" Height="44" Padding="24,0" Cursor="Hand" HorizontalAlignment="Right"/>
+                        <!-- Run Initial Sync Option -->
+                        <CheckBox IsChecked="{Binding RunInitialSyncNow}" Content="Execute initial synchronization &amp; backup immediately upon activation" Foreground="#F8FAFC" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,16"/>
+
+                        <!-- ACTIVE INITIAL BACKUP PROGRESS INDICATOR -->
+                        <Border Background="#0F172A" CornerRadius="10" Padding="16" Margin="0,0,0,16" BorderBrush="#0284C7" BorderThickness="1"
+                                Visibility="{Binding IsExecutingInitialSync, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🔄 " FontSize="14" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding InitialSyncStatus}" FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#0369A1" CornerRadius="4" Padding="8,2">
+                                        <TextBlock Text="BACKING UP / SYNCING" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </Grid>
+                                
+                                <TextBlock Text="{Binding InitialSyncProgressText}" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,8"
+                                           Visibility="{Binding InitialSyncProgressText, Converter={StaticResource StringNotEmptyToVis}}"/>
+                                
+                                <Grid>
+                                    <ProgressBar IsIndeterminate="True" Height="7" Foreground="#38BDF8" Background="#1E293B" BorderThickness="0"
+                                                 Visibility="{Binding IsIndeterminateInitialSync, Converter={StaticResource BoolToVis}}"/>
+                                    <ProgressBar Height="7" Value="{Binding InitialSyncProgress}" Maximum="100" Foreground="#0EA5E9" Background="#1E293B" BorderThickness="0"
+                                                 Visibility="{Binding IsIndeterminateInitialSync, Converter={StaticResource InverseBoolToVis}}"/>
+                                </Grid>
+                                <TextBlock Text="Safely transferring files, preserving revision snapshots, and propagating two-way changes." FontSize="11" Foreground="#64748B" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- INITIAL BACKUP COMPLETED CARD -->
+                        <Border Background="#064E3B" CornerRadius="10" Padding="16" Margin="0,0,0,16" BorderBrush="#10B981" BorderThickness="1"
+                                Visibility="{Binding HasCompletedInitialSyncSuccess, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="✓ Initial Backup &amp; Synchronization Completed" FontSize="14" FontWeight="Bold" Foreground="#A7F3D0"/>
+                                    <TextBlock Text="{Binding InitialSyncResultSummary}" FontSize="12" Foreground="#D1FAE5" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="View Sync Pairs ➔" Command="{Binding FinishWizardCommand}" Background="#10B981" Foreground="#064E3B" FontWeight="Bold" BorderThickness="0" Height="36" Padding="18,0" Cursor="Hand" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Activation Button -->
+                        <Button Content="Confirm and Activate Sync Pair" Command="{Binding ConfirmAndSavePairCommand}" 
+                                IsEnabled="{Binding IsExecutingInitialSync, Converter={StaticResource InverseBool}}"
+                                Visibility="{Binding HasCompletedInitialSyncSuccess, Converter={StaticResource InverseBoolToVis}}"
+                                Background="#16A34A" Foreground="White" FontWeight="Bold" BorderThickness="0" Height="44" Padding="24,0" Cursor="Hand" HorizontalAlignment="Right"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

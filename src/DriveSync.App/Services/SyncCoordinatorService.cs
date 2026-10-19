@@ -152,6 +152,17 @@ public class SyncCoordinatorService : IDisposable
             destProvider = CreateProvider(pair.Destination);
 
             // Analysis phase
+            pair.Status = SyncStatus.Scanning;
+            UpdateOverallStatus();
+            PairsChanged?.Invoke();
+            ProgressChanged?.Invoke(new SyncProgressReport
+            {
+                PairId = pair.Id,
+                CurrentOperationDescription = "Analyzing directory structures and calculating differences...",
+                ProcessedFilesCount = 0,
+                TotalFilesCount = 0
+            });
+
             var plan = await _syncEngine.AnalyzeAsync(pair, sourceProvider, destProvider, dryRun, ct).ConfigureAwait(false);
 
             if (plan.Conflicts.Count > 0)
@@ -167,6 +178,18 @@ public class SyncCoordinatorService : IDisposable
             {
                 ProgressChanged?.Invoke(report);
             });
+
+            if (plan.Operations.Count > 0)
+            {
+                ProgressChanged?.Invoke(new SyncProgressReport
+                {
+                    PairId = pair.Id,
+                    CurrentOperationDescription = $"Synchronizing {plan.Operations.Count} items...",
+                    ProcessedFilesCount = 0,
+                    TotalFilesCount = plan.Operations.Count,
+                    TotalBytesToTransfer = plan.TotalBytesToTransfer
+                });
+            }
 
             // Execution phase
             var result = await _syncEngine.ExecuteSyncAsync(pair, sourceProvider, destProvider, plan, progress, ct).ConfigureAwait(false);

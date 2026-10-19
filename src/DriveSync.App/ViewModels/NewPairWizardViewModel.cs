@@ -202,10 +202,67 @@ public class NewPairWizardViewModel : ViewModelBase
         set => SetProperty(ref _hasConfirmedFirstSync, value);
     }
 
+    private bool _runInitialSyncNow = true;
+    public bool RunInitialSyncNow
+    {
+        get => _runInitialSyncNow;
+        set => SetProperty(ref _runInitialSyncNow, value);
+    }
+
+    private bool _isExecutingInitialSync;
+    public bool IsExecutingInitialSync
+    {
+        get => _isExecutingInitialSync;
+        set => SetProperty(ref _isExecutingInitialSync, value);
+    }
+
+    private double _initialSyncProgress;
+    public double InitialSyncProgress
+    {
+        get => _initialSyncProgress;
+        set => SetProperty(ref _initialSyncProgress, value);
+    }
+
+    private bool _isIndeterminateInitialSync = true;
+    public bool IsIndeterminateInitialSync
+    {
+        get => _isIndeterminateInitialSync;
+        set => SetProperty(ref _isIndeterminateInitialSync, value);
+    }
+
+    private string _initialSyncStatus = string.Empty;
+    public string InitialSyncStatus
+    {
+        get => _initialSyncStatus;
+        set => SetProperty(ref _initialSyncStatus, value);
+    }
+
+    private string _initialSyncProgressText = string.Empty;
+    public string InitialSyncProgressText
+    {
+        get => _initialSyncProgressText;
+        set => SetProperty(ref _initialSyncProgressText, value);
+    }
+
+    private bool _hasCompletedInitialSyncSuccess;
+    public bool HasCompletedInitialSyncSuccess
+    {
+        get => _hasCompletedInitialSyncSuccess;
+        set => SetProperty(ref _hasCompletedInitialSyncSuccess, value);
+    }
+
+    private string _initialSyncResultSummary = string.Empty;
+    public string InitialSyncResultSummary
+    {
+        get => _initialSyncResultSummary;
+        set => SetProperty(ref _initialSyncResultSummary, value);
+    }
+
     public ICommand NextStepCommand { get; }
     public ICommand PrevStepCommand { get; }
     public ICommand RunPreSyncComparisonCommand { get; }
     public ICommand ConfirmAndSavePairCommand { get; }
+    public ICommand FinishWizardCommand { get; }
     public ICommand BrowseSourceFolderCommand { get; }
     public ICommand BrowseDestFolderCommand { get; }
 
@@ -223,7 +280,8 @@ public class NewPairWizardViewModel : ViewModelBase
         NextStepCommand = new RelayCommand(NextStep);
         PrevStepCommand = new RelayCommand(PrevStep);
         RunPreSyncComparisonCommand = new RelayCommand(async () => await RunPreSyncComparisonAsync());
-        ConfirmAndSavePairCommand = new RelayCommand(async () => await ConfirmAndSavePairAsync(), () => HasConfirmedFirstSync);
+        ConfirmAndSavePairCommand = new RelayCommand(async () => await ConfirmAndSavePairAsync());
+        FinishWizardCommand = new RelayCommand(() => OnSuccess?.Invoke());
         BrowseSourceFolderCommand = new RelayCommand(BrowseSourceFolder);
         BrowseDestFolderCommand = new RelayCommand(BrowseDestFolder);
 
@@ -410,8 +468,70 @@ public class NewPairWizardViewModel : ViewModelBase
         }
 
         await _coordinator.SavePairAsync(pair);
-        MessageBox.Show($"Sync pair '{pair.Name}' successfully created! Two-way synchronization is active.", "DriveSync Configured", MessageBoxButton.OK, MessageBoxImage.Information);
-        OnSuccess?.Invoke();
+
+        if (RunInitialSyncNow)
+        {
+            IsExecutingInitialSync = true;
+            InitialSyncStatus = $"Starting initial backup & synchronization for '{pair.Name}'...";
+            InitialSyncProgress = 0;
+            IsIndeterminateInitialSync = true;
+            InitialSyncProgressText = "Preparing file plan and checking capacity...";
+
+            Action<SyncProgressReport>? progressHandler = null;
+            progressHandler = (report) =>
+            {
+                if (report.PairId != pair.Id) return;
+
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.HasShutdownStarted) return;
+
+                void Update()
+                {
+                    InitialSyncProgress = report.ProgressPercentage;
+                    IsIndeterminateInitialSync = report.ProgressPercentage <= 0.0 && report.TotalFilesCount == 0;
+                    InitialSyncStatus = report.CurrentOperationDescription;
+                    if (report.TotalBytesToTransfer > 0)
+                    {
+                        double curMb = report.BytesTransferred / (1024.0 * 1024.0);
+                        double totMb = report.TotalBytesToTransfer / (1024.0 * 1024.0);
+                        InitialSyncProgressText = $"{report.ProcessedFilesCount}/{report.TotalFilesCount} files ({curMb:F1} MB / {totMb:F1} MB)";
+                    }
+                    else if (report.TotalFilesCount > 0)
+                    {
+                        InitialSyncProgressText = $"{report.ProcessedFilesCount}/{report.TotalFilesCount} files";
+                    }
+                }
+
+                if (dispatcher.CheckAccess()) Update();
+                else dispatcher.BeginInvoke((Action)Update);
+            };
+
+            _coordinator.ProgressChanged += progressHandler;
+
+            try
+            {
+                var result = await Task.Run(() => _coordinator.TriggerSyncAsync(pair.Id, dryRun: false));
+                IsExecutingInitialSync = false;
+                HasCompletedInitialSyncSuccess = true;
+                InitialSyncResultSummary = result.Success
+                    ? $"Initial backup & sync completed successfully! {result.FilesCreated} created, {result.FilesUpdated} updated, {result.FilesDeleted} deleted ({result.BytesTransferred / (1024.0 * 1024.0):F1} MB transferred)."
+                    : $"Initial sync completed with warnings: {string.Join("; ", result.ErrorMessages)}";
+            }
+            catch (Exception ex)
+            {
+                IsExecutingInitialSync = false;
+                InitialSyncResultSummary = $"Initial sync error: {ex.Message}";
+            }
+            finally
+            {
+                _coordinator.ProgressChanged -= progressHandler;
+            }
+        }
+        else
+        {
+            MessageBox.Show($"Sync pair '{pair.Name}' successfully created! Two-way synchronization is active.", "DriveSync Configured", MessageBoxButton.OK, MessageBoxImage.Information);
+            OnSuccess?.Invoke();
+        }
     }
 
     private SyncPair BuildSyncPair()

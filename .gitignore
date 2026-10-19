@@ -10,3 +10,4 @@
 *.log
 _test*/
 TestResults/
+dist/

@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Windows.Forms;
 using DriveSync.Core.Models;
 
@@ -109,6 +110,21 @@ public class TrayService : IDisposable
         using var bitmap = new Bitmap(size, size);
         using var g = Graphics.FromImage(bitmap);
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+        string pngPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.png");
+        bool drewBase = false;
+
+        if (File.Exists(pngPath))
+        {
+            try
+            {
+                using var baseImg = Image.FromFile(pngPath);
+                g.DrawImage(baseImg, 0, 0, size, size);
+                drewBase = true;
+            }
+            catch { }
+        }
 
         Color baseColor = status switch
         {
@@ -120,16 +136,31 @@ public class TrayService : IDisposable
             _ => Color.FromArgb(100, 116, 139)                         // Slate Gray
         };
 
-        // Draw modern rounded shield/circle base
-        using var brush = new SolidBrush(Color.FromArgb(30, 41, 59)); // Dark background
-        g.FillEllipse(brush, 1, 1, size - 2, size - 2);
+        if (!drewBase)
+        {
+            // Draw modern rounded shield/circle base
+            using var brush = new SolidBrush(Color.FromArgb(30, 41, 59)); // Dark background
+            g.FillEllipse(brush, 1, 1, size - 2, size - 2);
 
-        using var ringPen = new Pen(baseColor, 3.5f);
-        g.DrawEllipse(ringPen, 3, 3, size - 6, size - 6);
+            using var ringPen = new Pen(baseColor, 3.5f);
+            g.DrawEllipse(ringPen, 3, 3, size - 6, size - 6);
 
-        // Draw inner status indicator
-        using var centerBrush = new SolidBrush(baseColor);
-        g.FillEllipse(centerBrush, 10, 10, size - 20, size - 20);
+            using var centerBrush = new SolidBrush(baseColor);
+            g.FillEllipse(centerBrush, 10, 10, size - 20, size - 20);
+        }
+        else
+        {
+            // Draw status badge pip in bottom-right corner
+            int badgeSize = 10;
+            int badgeX = size - badgeSize - 1;
+            int badgeY = size - badgeSize - 1;
+
+            using var borderBrush = new SolidBrush(Color.FromArgb(15, 23, 42));
+            g.FillEllipse(borderBrush, badgeX - 1, badgeY - 1, badgeSize + 2, badgeSize + 2);
+
+            using var pipBrush = new SolidBrush(baseColor);
+            g.FillEllipse(pipBrush, badgeX, badgeY, badgeSize, badgeSize);
+        }
 
         IntPtr hIcon = bitmap.GetHicon();
         return (Icon)Icon.FromHandle(hIcon).Clone();

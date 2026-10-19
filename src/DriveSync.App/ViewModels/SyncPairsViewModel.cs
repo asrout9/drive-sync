@@ -18,6 +18,9 @@ public class SyncPairsViewModel : ViewModelBase
     private bool _isBusy;
     private double _currentProgress;
     private string _progressText = string.Empty;
+    private bool _isIndeterminateProgress = true;
+    private string _progressPercentageText = string.Empty;
+    private string _activeSyncingPairName = string.Empty;
 
     public ObservableCollection<SyncPair> Pairs { get; } = new();
 
@@ -49,6 +52,24 @@ public class SyncPairsViewModel : ViewModelBase
     {
         get => _progressText;
         set => SetProperty(ref _progressText, value);
+    }
+
+    public bool IsIndeterminateProgress
+    {
+        get => _isIndeterminateProgress;
+        set => SetProperty(ref _isIndeterminateProgress, value);
+    }
+
+    public string ProgressPercentageText
+    {
+        get => _progressPercentageText;
+        set => SetProperty(ref _progressPercentageText, value);
+    }
+
+    public string ActiveSyncingPairName
+    {
+        get => _activeSyncingPairName;
+        set => SetProperty(ref _activeSyncingPairName, value);
     }
 
     public ICommand SyncNowCommand { get; }
@@ -101,9 +122,12 @@ public class SyncPairsViewModel : ViewModelBase
         if (pair == null) return;
 
         IsBusy = true;
+        ActiveSyncingPairName = pair.Name;
         StatusMessage = dryRun ? $"Running pre-sync comparison for '{pair.Name}'..." : $"Synchronizing '{pair.Name}'...";
         CurrentProgress = 0;
-        ProgressText = "Preparing...";
+        IsIndeterminateProgress = true;
+        ProgressPercentageText = "Preparing...";
+        ProgressText = "Analyzing changes and verifying directories...";
 
         try
         {
@@ -188,18 +212,29 @@ public class SyncPairsViewModel : ViewModelBase
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.HasShutdownStarted) return;
 
-        if (dispatcher.CheckAccess())
+        void ApplyReport()
         {
             CurrentProgress = report.ProgressPercentage;
-            ProgressText = $"{report.CurrentOperationDescription} ({report.ProcessedFilesCount}/{report.TotalFilesCount})";
-        }
-        else
-        {
-            dispatcher.BeginInvoke(() =>
+            IsIndeterminateProgress = report.ProgressPercentage <= 0.0 && report.TotalFilesCount == 0;
+            ProgressPercentageText = report.ProgressPercentage > 0 ? $"{report.ProgressPercentage:F0}%" : "";
+
+            if (report.TotalBytesToTransfer > 0)
             {
-                CurrentProgress = report.ProgressPercentage;
-                ProgressText = $"{report.CurrentOperationDescription} ({report.ProcessedFilesCount}/{report.TotalFilesCount})";
-            });
+                double transferredMb = report.BytesTransferred / (1024.0 * 1024.0);
+                double totalMb = report.TotalBytesToTransfer / (1024.0 * 1024.0);
+                ProgressText = $"{report.CurrentOperationDescription} • {report.ProcessedFilesCount}/{report.TotalFilesCount} files ({transferredMb:F1} MB / {totalMb:F1} MB)";
+            }
+            else if (report.TotalFilesCount > 0)
+            {
+                ProgressText = $"{report.CurrentOperationDescription} ({report.ProcessedFilesCount}/{report.TotalFilesCount} files)";
+            }
+            else
+            {
+                ProgressText = report.CurrentOperationDescription;
+            }
         }
+
+        if (dispatcher.CheckAccess()) ApplyReport();
+        else dispatcher.BeginInvoke((Action)ApplyReport);
     }
 }
