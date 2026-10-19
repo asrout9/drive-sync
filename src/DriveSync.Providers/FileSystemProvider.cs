@@ -88,60 +88,99 @@ public class FileSystemProvider : ISyncProvider
             }
 
             var dirInfo = new DirectoryInfo(targetFolder);
+            var queue = new Queue<DirectoryInfo>();
+            queue.Enqueue(dirInfo);
 
-            // Enumerate directories
-            foreach (var dir in dirInfo.EnumerateDirectories("*", SearchOption.AllDirectories))
+            while (queue.Count > 0)
             {
                 ct.ThrowIfCancellationRequested();
-                string rel = Path.GetRelativePath(_endpoint.RootPath, dir.FullName).Replace('\\', '/');
+                var current = queue.Dequeue();
 
-                if (PathSafety.IsMetadataPath(rel)) continue;
-
-                results.Add(new SyncItem
+                // 1. Enumerate subdirectories with error resilience
+                IEnumerable<DirectoryInfo> subDirs;
+                try
                 {
-                    RelativePath = rel,
-                    StableId = rel,
-                    IsDirectory = true,
-                    SizeBytes = 0,
-                    LastModifiedUtc = dir.LastWriteTimeUtc,
-                    Attributes = dir.Attributes
-                });
-            }
-
-            // Enumerate files
-            foreach (var file in dirInfo.EnumerateFiles("*", SearchOption.AllDirectories))
-            {
-                ct.ThrowIfCancellationRequested();
-                string rel = Path.GetRelativePath(_endpoint.RootPath, file.FullName).Replace('\\', '/');
-
-                if (PathSafety.IsMetadataPath(rel)) continue;
-
-                string? hash = null;
-                // Fast hash lookup from cache or compute if file <= 50MB
-                if (_hashCache.TryGetValue(rel, out var cached) && cached.Size == file.Length && cached.MTime == file.LastWriteTimeUtc)
-                {
-                    hash = cached.Hash;
+                    subDirs = current.EnumerateDirectories();
                 }
-                else if (file.Length <= 50L * 1024 * 1024)
+                catch (UnauthorizedAccessException) { continue; }
+                catch (DirectoryNotFoundException) { continue; }
+                catch (Exception ex)
                 {
-                    try
+                    _logger.LogWarning(ex, "Could not enumerate subdirectories of '{Dir}'", current.FullName);
+                    continue;
+                }
+
+                foreach (var dir in subDirs)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    string rel = Path.GetRelativePath(_endpoint.RootPath, dir.FullName).Replace('\\', '/');
+
+                    if (PathSafety.IsIgnoredSystemPath(rel)) continue;
+
+                    // Avoid traversing reparse points / symlinks
+                    if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+
+                    results.Add(new SyncItem
                     {
-                        hash = ComputeFileHash(file.FullName);
-                        _hashCache[rel] = (file.Length, file.LastWriteTimeUtc, hash);
-                    }
-                    catch { }
+                        RelativePath = rel,
+                        StableId = rel,
+                        IsDirectory = true,
+                        SizeBytes = 0,
+                        LastModifiedUtc = dir.LastWriteTimeUtc,
+                        Attributes = dir.Attributes
+                    });
+
+                    queue.Enqueue(dir);
                 }
 
-                results.Add(new SyncItem
+                // 2. Enumerate files with error resilience
+                IEnumerable<FileInfo> files;
+                try
                 {
-                    RelativePath = rel,
-                    StableId = rel,
-                    IsDirectory = false,
-                    SizeBytes = file.Length,
-                    LastModifiedUtc = file.LastWriteTimeUtc,
-                    ContentHashSha256 = hash,
-                    Attributes = file.Attributes
-                });
+                    files = current.EnumerateFiles();
+                }
+                catch (UnauthorizedAccessException) { continue; }
+                catch (FileNotFoundException) { continue; }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not enumerate files of '{Dir}'", current.FullName);
+                    continue;
+                }
+
+                foreach (var file in files)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    string rel = Path.GetRelativePath(_endpoint.RootPath, file.FullName).Replace('\\', '/');
+
+                    if (PathSafety.IsIgnoredSystemPath(rel)) continue;
+
+                    string? hash = null;
+                    // Fast hash lookup from cache or compute if file <= 50MB
+                    if (_hashCache.TryGetValue(rel, out var cached) && cached.Size == file.Length && cached.MTime == file.LastWriteTimeUtc)
+                    {
+                        hash = cached.Hash;
+                    }
+                    else if (file.Length <= 50L * 1024 * 1024)
+                    {
+                        try
+                        {
+                            hash = ComputeFileHash(file.FullName);
+                            _hashCache[rel] = (file.Length, file.LastWriteTimeUtc, hash);
+                        }
+                        catch { }
+                    }
+
+                    results.Add(new SyncItem
+                    {
+                        RelativePath = rel,
+                        StableId = rel,
+                        IsDirectory = false,
+                        SizeBytes = file.Length,
+                        LastModifiedUtc = file.LastWriteTimeUtc,
+                        ContentHashSha256 = hash,
+                        Attributes = file.Attributes
+                    });
+                }
             }
 
             return (IReadOnlyList<SyncItem>)results;
@@ -405,7 +444,7 @@ public class FileSystemProvider : ISyncProvider
             try
             {
                 string rel = Path.GetRelativePath(_rootPath, fullPath).Replace('\\', '/');
-                if (PathSafety.IsMetadataPath(rel)) return;
+                if (PathSafety.IsIgnoredSystemPath(rel)) return;
 
                 _pendingEvents[rel] = type;
                 _debounceTimer.Stop();
@@ -420,7 +459,7 @@ public class FileSystemProvider : ISyncProvider
             {
                 string oldRel = Path.GetRelativePath(_rootPath, oldFullPath).Replace('\\', '/');
                 string newRel = Path.GetRelativePath(_rootPath, fullPath).Replace('\\', '/');
-                if (PathSafety.IsMetadataPath(oldRel) && PathSafety.IsMetadataPath(newRel)) return;
+                if (PathSafety.IsIgnoredSystemPath(oldRel) && PathSafety.IsIgnoredSystemPath(newRel)) return;
 
                 _onChange(new FileSystemChangeEventArgs
                 {

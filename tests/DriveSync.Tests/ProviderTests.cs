@@ -133,4 +133,37 @@ public class ProviderTests : IDisposable
         bool invalid = await detector.VerifyDriveIdentityAsync(_testDir, expectedSerialNumber: null, expectedToken: "wrong_token_123");
         Assert.False(invalid);
     }
+
+    [Fact]
+    public async Task FileSystemProvider_SkipsSystemAndInaccessibleFoldersWithoutThrowing()
+    {
+        // Setup mock system volume folders and normal user documents
+        string sysVol = Path.Combine(_testDir, "System Volume Information");
+        string recycle = Path.Combine(_testDir, "$RECYCLE.BIN");
+        string userDocs = Path.Combine(_testDir, "Documents");
+        Directory.CreateDirectory(sysVol);
+        Directory.CreateDirectory(recycle);
+        Directory.CreateDirectory(userDocs);
+
+        await File.WriteAllTextAsync(Path.Combine(sysVol, "tracking.log"), "system internal");
+        await File.WriteAllTextAsync(Path.Combine(recycle, "deleted.bin"), "recycled data");
+        await File.WriteAllTextAsync(Path.Combine(userDocs, "report.docx"), "user document content");
+
+        var endpoint = new SyncEndpoint
+        {
+            ProviderType = ProviderType.Local,
+            RootPath = _testDir,
+            DisplayName = "Test Root Drive"
+        };
+        using var provider = new FileSystemProvider(endpoint);
+
+        var items = await provider.EnumerateItemsAsync();
+
+        // Must include valid user documents
+        Assert.Contains(items, i => i.RelativePath == "Documents/report.docx");
+
+        // Must completely exclude System Volume Information and $RECYCLE.BIN
+        Assert.DoesNotContain(items, i => i.RelativePath.Contains("System Volume Information", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(items, i => i.RelativePath.Contains("$RECYCLE.BIN", StringComparison.OrdinalIgnoreCase));
+    }
 }

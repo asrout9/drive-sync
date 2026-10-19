@@ -260,52 +260,71 @@ public class VersionManager : IVersionManager
         }
         catch { }
 
-        // Content size
-        foreach (var file in Directory.EnumerateFiles(rootPath, "*", SearchOption.AllDirectories))
+        var enumOptions = new EnumerationOptions
         {
-            ct.ThrowIfCancellationRequested();
-            string rel = Path.GetRelativePath(rootPath, file);
-            if (PathSafety.IsMetadataPath(rel)) continue;
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+            ReturnSpecialDirectories = false
+        };
 
-            try
+        // Content size
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(rootPath, "*", enumOptions))
             {
-                summary.ContentSizeBytes += new FileInfo(file).Length;
+                ct.ThrowIfCancellationRequested();
+                string rel = Path.GetRelativePath(rootPath, file);
+                if (PathSafety.IsIgnoredSystemPath(rel)) continue;
+
+                try
+                {
+                    summary.ContentSizeBytes += new FileInfo(file).Length;
+                }
+                catch { }
             }
-            catch { }
         }
+        catch { }
 
         // Versions size
         string versionsRoot = GetVersionsRoot(rootPath);
         if (Directory.Exists(versionsRoot))
         {
-            foreach (var file in Directory.EnumerateFiles(versionsRoot, "*", SearchOption.AllDirectories))
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                try
+                foreach (var file in Directory.EnumerateFiles(versionsRoot, "*", enumOptions))
                 {
-                    var fi = new FileInfo(file);
-                    summary.VersionHistorySizeBytes += fi.Length;
-                    summary.PreservedVersionsCount++;
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var fi = new FileInfo(file);
+                        summary.VersionHistorySizeBytes += fi.Length;
+                        summary.PreservedVersionsCount++;
+                    }
+                    catch { }
                 }
-                catch { }
             }
+            catch { }
         }
 
         // Deleted items size
         string deletedRoot = GetDeletedRoot(rootPath);
         if (Directory.Exists(deletedRoot))
         {
-            foreach (var file in Directory.EnumerateFiles(deletedRoot, "*", SearchOption.AllDirectories))
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                try
+                foreach (var file in Directory.EnumerateFiles(deletedRoot, "*", enumOptions))
                 {
-                    var fi = new FileInfo(file);
-                    summary.DeletedItemsSizeBytes += fi.Length;
-                    summary.DeletedItemsCount++;
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var fi = new FileInfo(file);
+                        summary.DeletedItemsSizeBytes += fi.Length;
+                        summary.DeletedItemsCount++;
+                    }
+                    catch { }
                 }
-                catch { }
             }
+            catch { }
         }
 
         return Task.FromResult(summary);
@@ -323,9 +342,24 @@ public class VersionManager : IVersionManager
         {
             if (!Directory.Exists(dirPath)) return;
 
-            var files = new DirectoryInfo(dirPath).EnumerateFiles("*", SearchOption.AllDirectories)
-                .OrderBy(f => f.LastWriteTimeUtc)
-                .ToList();
+            var enumOptions = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = true,
+                ReturnSpecialDirectories = false
+            };
+
+            List<FileInfo> files;
+            try
+            {
+                files = new DirectoryInfo(dirPath).EnumerateFiles("*", enumOptions)
+                    .OrderBy(f => f.LastWriteTimeUtc)
+                    .ToList();
+            }
+            catch
+            {
+                return;
+            }
 
             long totalSize = files.Sum(f => f.Length);
 
