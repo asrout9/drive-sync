@@ -119,13 +119,16 @@ public class GoogleDriveProvider : ISyncProvider
         return long.MaxValue;
     }
 
-    public async Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder = "", CancellationToken ct = default)
+    public Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder = "", CancellationToken ct = default)
+        => EnumerateItemsAsync(relativeSubfolder, null, ct);
+
+    public async Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder, IProgress<string>? progress, CancellationToken ct = default)
     {
         string? token = await GetAccessTokenAsync(ct).ConfigureAwait(false);
         if (string.IsNullOrEmpty(token) && _localFallbackProvider != null)
         {
             _logger.LogInformation("Google Drive: Using local folder mode for {Path}", _endpoint.RootPath);
-            return await _localFallbackProvider.EnumerateItemsAsync(relativeSubfolder, ct).ConfigureAwait(false);
+            return await _localFallbackProvider.EnumerateItemsAsync(relativeSubfolder, progress, ct).ConfigureAwait(false);
         }
 
         var items = new List<SyncItem>();

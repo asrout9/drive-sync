@@ -172,7 +172,22 @@ public class NewPairWizardViewModel : ViewModelBase
     public SyncPlan? PreviewPlan
     {
         get => _previewPlan;
-        set => SetProperty(ref _previewPlan, value);
+        set
+        {
+            if (SetProperty(ref _previewPlan, value))
+            {
+                OnPropertyChanged(nameof(HasPreviewPlan));
+            }
+        }
+    }
+
+    public bool HasPreviewPlan => _previewPlan != null;
+
+    private string _comparisonStatus = "Ready to analyze.";
+    public string ComparisonStatus
+    {
+        get => _comparisonStatus;
+        set => SetProperty(ref _comparisonStatus, value);
     }
 
     public string ComparisonSummary
@@ -324,8 +339,16 @@ public class NewPairWizardViewModel : ViewModelBase
 
     public async Task RunPreSyncComparisonAsync()
     {
+        if (IsComparing) return;
+
         IsComparing = true;
-        ComparisonSummary = "Scanning files on both sides and analyzing differences...";
+        ComparisonStatus = "Starting pre-sync analysis...";
+        ComparisonSummary = string.Empty;
+
+        var progress = new Progress<string>(msg =>
+        {
+            ComparisonStatus = msg;
+        });
 
         try
         {
@@ -338,17 +361,25 @@ public class NewPairWizardViewModel : ViewModelBase
             using var dstProv = new FileSystemProvider(pair.Destination);
             var resolver = new ThreeWayConflictResolver();
 
-            var srcItems = (await srcProv.EnumerateItemsAsync()).ToDictionary(i => i.RelativePath, StringComparer.OrdinalIgnoreCase);
-            var dstItems = (await dstProv.EnumerateItemsAsync()).ToDictionary(i => i.RelativePath, StringComparer.OrdinalIgnoreCase);
+            ComparisonStatus = $"Scanning Source: {SourceDisplayName}...";
+            var srcList = await srcProv.EnumerateItemsAsync("", progress);
+            var srcItems = srcList.ToDictionary(i => i.RelativePath, StringComparer.OrdinalIgnoreCase);
 
+            ComparisonStatus = $"Scanning Destination: {DestDisplayName}...";
+            var dstList = await dstProv.EnumerateItemsAsync("", progress);
+            var dstItems = dstList.ToDictionary(i => i.RelativePath, StringComparer.OrdinalIgnoreCase);
+
+            ComparisonStatus = "Evaluating two-way synchronization plan and detecting conflicts...";
             var plan = resolver.EvaluateSyncPlan(pair, srcItems, dstItems, new Dictionary<string, SyncSnapshot>(), isDryRun: true);
             plan.DestinationAvailableBytes = await dstProv.GetAvailableFreeSpaceAsync();
             PreviewPlan = plan;
 
+            ComparisonStatus = "Pre-sync analysis complete!";
             ComparisonSummary = $"Pre-Sync Analysis: {plan.NewFilesCount} new files, {plan.ChangedFilesCount} changed files, {plan.ConflictsCount} conflicts. Total data to transfer: {plan.TotalBytesToTransfer / 1024.0:F1} KB. Destination Free Space: {plan.DestinationAvailableBytes / (1024.0 * 1024 * 1024):F1} GB.";
         }
         catch (Exception ex)
         {
+            ComparisonStatus = "Analysis encountered an issue.";
             ComparisonSummary = $"Comparison warning: {ex.Message}";
         }
         finally

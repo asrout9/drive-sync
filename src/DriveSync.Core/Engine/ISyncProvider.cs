@@ -37,6 +37,7 @@ public interface ISyncProvider : IAsyncDisposable, IDisposable
     Task<long> GetAvailableFreeSpaceAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder = "", CancellationToken ct = default);
+    Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder, IProgress<string>? progress, CancellationToken ct = default);
     Task<SyncItemMetadata?> GetItemMetadataAsync(string relativePath, CancellationToken ct = default);
 
     Task<Stream> OpenReadAsync(string relativePath, CancellationToken ct = default);

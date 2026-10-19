@@ -156,12 +156,77 @@
                 <!-- STEP 4: Pre-Sync Comparison & Confirmation -->
                 <Border Background="#1E293B" CornerRadius="12" BorderBrush="#334155" BorderThickness="1" Padding="20" Margin="0,0,0,16">
                     <StackPanel>
-                        <TextBlock Text="Pre-Sync Comparison &amp; Initial Confirmation" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                        <TextBlock Text="Pre-Sync Comparison &amp; Initial Confirmation" FontSize="14" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,4"/>
+                        <TextBlock Text="Simulates the two-way merge before making any changes to verify files, safety rules, and available space." FontSize="12" Foreground="#94A3B8" Margin="0,0,0,12"/>
                         
-                        <Button Content="🔍 Analyze Pre-Sync Preview" Command="{Binding RunPreSyncComparisonCommand}" Background="#0284C7" Foreground="White" BorderThickness="0" Height="36" Padding="16,0" Cursor="Hand" Margin="0,0,0,12"/>
+                        <!-- Action Button -->
+                        <Button Command="{Binding RunPreSyncComparisonCommand}" 
+                                IsEnabled="{Binding IsComparing, Converter={StaticResource InverseBool}}"
+                                Background="#0284C7" Foreground="White" BorderThickness="0" Height="38" Padding="18,0" Cursor="Hand" Margin="0,0,0,14" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔍 " FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock Text="Analyze Pre-Sync Preview" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
 
-                        <Border Background="#0F172A" CornerRadius="8" Padding="14" Margin="0,0,0,16" BorderBrush="#334155" BorderThickness="1">
-                            <TextBlock Text="{Binding ComparisonSummary}" FontSize="12" Foreground="#CBD5E1" TextWrapping="Wrap"/>
+                        <!-- ACTIVE SCANNING PROGRESS INDICATOR -->
+                        <Border Background="#0F172A" CornerRadius="10" Padding="16" Margin="0,0,0,16" BorderBrush="#0284C7" BorderThickness="1"
+                                Visibility="{Binding IsComparing, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="⏳ " FontSize="14" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ComparisonStatus}" FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#0369A1" CornerRadius="4" Padding="8,2">
+                                        <TextBlock Text="ANALYZING..." FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </Grid>
+                                
+                                <ProgressBar IsIndeterminate="True" Height="6" Foreground="#38BDF8" Background="#1E293B" BorderThickness="0"/>
+                                <TextBlock Text="Scanning directory trees, calculating checksums, and verifying two-way safety rules without modifying files." FontSize="11" Foreground="#64748B" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- COMPLETED RESULTS & METRICS BREAKDOWN -->
+                        <Border Background="#0F172A" CornerRadius="10" Padding="16" Margin="0,0,0,16" BorderBrush="#334155" BorderThickness="1"
+                                Visibility="{Binding ComparisonSummary, Converter={StaticResource StringNotEmptyToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ComparisonSummary}" FontSize="13" Foreground="#F8FAFC" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+                                <!-- Plan Metrics Pills -->
+                                <Border Background="#1E293B" CornerRadius="8" Padding="14" Margin="0,0,0,6"
+                                        Visibility="{Binding HasPreviewPlan, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="NEW FILES" FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
+                                            <TextBlock Text="{Binding PreviewPlan.NewFilesCount}" FontSize="20" FontWeight="Bold" Foreground="#10B981" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="MODIFICATIONS" FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
+                                            <TextBlock Text="{Binding PreviewPlan.ChangedFilesCount}" FontSize="20" FontWeight="Bold" Foreground="#38BDF8" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="DELETIONS" FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
+                                            <TextBlock Text="{Binding PreviewPlan.DeletedFilesCount}" FontSize="20" FontWeight="Bold" Foreground="#F87171" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3">
+                                            <TextBlock Text="CONFLICTS" FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
+                                            <TextBlock Text="{Binding PreviewPlan.ConflictsCount}" FontSize="20" FontWeight="Bold" Foreground="#F59E0B" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
                         </Border>
 
                         <!-- Mandatory explicit confirmation -->

@@ -73,7 +73,10 @@ public class FileSystemProvider : ISyncProvider
         return Task.FromResult(long.MaxValue);
     }
 
-    public async Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder = "", CancellationToken ct = default)
+    public Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder = "", CancellationToken ct = default)
+        => EnumerateItemsAsync(relativeSubfolder, null, ct);
+
+    public async Task<IReadOnlyList<SyncItem>> EnumerateItemsAsync(string relativeSubfolder, IProgress<string>? progress, CancellationToken ct = default)
     {
         return await Task.Run(() =>
         {
@@ -91,10 +94,21 @@ public class FileSystemProvider : ISyncProvider
             var queue = new Queue<DirectoryInfo>();
             queue.Enqueue(dirInfo);
 
+            int lastReportCount = 0;
+            progress?.Report($"Scanning {_endpoint.DisplayName} ({_endpoint.RootPath})...");
+
             while (queue.Count > 0)
             {
                 ct.ThrowIfCancellationRequested();
                 var current = queue.Dequeue();
+
+                if (results.Count - lastReportCount >= 20 || results.Count == 0)
+                {
+                    lastReportCount = results.Count;
+                    string currentRel = Path.GetRelativePath(_endpoint.RootPath, current.FullName).Replace('\\', '/');
+                    if (string.IsNullOrEmpty(currentRel) || currentRel == ".") currentRel = _endpoint.DisplayName;
+                    progress?.Report($"Scanning {currentRel} ({results.Count} items found)...");
+                }
 
                 // 1. Enumerate subdirectories with error resilience
                 IEnumerable<DirectoryInfo> subDirs;
