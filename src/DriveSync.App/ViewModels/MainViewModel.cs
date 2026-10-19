@@ -67,6 +67,8 @@ public class MainViewModel : ViewModelBase
             };
         });
 
+        NewPairWizardVM.OnSuccess = () => NavigateCommand.Execute("Pairs");
+
         _coordinator.GlobalStatusChanged += (s, desc) => OnPropertyChanged(nameof(OverallStatus));
     }
 }

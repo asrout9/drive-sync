@@ -19,9 +19,18 @@ public partial class App : Application
     private TrayFlyoutWindow? _trayFlyout;
     private MainWindow? _mainWindow;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        // Catch unhandled UI exceptions gracefully
+        DispatcherUnhandledException += (s, args) =>
+        {
+            System.Diagnostics.Debug.WriteLine($"[DriveSync UI Exception] {args.Exception}");
+            args.Handled = true;
+        };
 
         string appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -44,14 +53,7 @@ public partial class App : Application
 
         // ViewModels
         services.AddSingleton<SyncPairsViewModel>();
-        services.AddTransient<NewPairWizardViewModel>(sp =>
-        {
-            var coord = sp.GetRequiredService<SyncCoordinatorService>();
-            var ssd = sp.GetRequiredService<ISsdDetector>();
-            var cred = sp.GetRequiredService<ICloudCredentialStore>();
-            var mainVM = sp.GetRequiredService<MainViewModel>();
-            return new NewPairWizardViewModel(coord, ssd, cred, () => mainVM.NavigateCommand.Execute("Pairs"));
-        });
+        services.AddSingleton<NewPairWizardViewModel>();
         services.AddSingleton<ConflictsViewModel>();
         services.AddSingleton<ActivityJournalViewModel>();
         services.AddSingleton<RecoveryViewModel>();
@@ -63,52 +65,95 @@ public partial class App : Application
         // Views
         services.AddSingleton<MainWindow>();
 
+        string logFile = Path.Combine(appData, "startup.log");
+        void Log(string msg) {
+            try { File.AppendAllText(logFile, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}{Environment.NewLine}"); } catch { }
+        }
+
+        Log("Entering OnStartup...");
+
         _serviceProvider = services.BuildServiceProvider();
+        Log("ServiceProvider built successfully.");
 
-        // Initialize background stores and sync coordinator
-        var coordinator = _serviceProvider.GetRequiredService<SyncCoordinatorService>();
-        await coordinator.InitializeAsync();
-
-        _mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-
-        // Setup System Tray
-        _trayFlyout = new TrayFlyoutWindow(coordinator, ShowMainWindow);
-
-        _trayService = new TrayService();
-        _trayService.Initialize(
-            onOpenApp: ShowMainWindow,
-            onToggleFlyout: () =>
-            {
-                if (_trayFlyout.IsVisible) _trayFlyout.Hide();
-                else _trayFlyout.ShowNearTray();
-            },
-            onReviewConflicts: () =>
-            {
-                ShowMainWindow();
-                var mainVM = _serviceProvider.GetRequiredService<MainViewModel>();
-                mainVM.NavigateCommand.Execute("Conflicts");
-            },
-            onPauseResumeAll: () =>
-            {
-                if (coordinator.OverallStatus == Core.Models.SyncStatus.Paused)
-                {
-                    foreach (var p in coordinator.Pairs) coordinator.ResumePair(p.Id);
-                }
-                else
-                {
-                    foreach (var p in coordinator.Pairs) coordinator.PausePair(p.Id);
-                }
-            },
-            onSyncAllNow: () =>
-            {
-                foreach (var p in coordinator.Pairs) _ = coordinator.TriggerSyncAsync(p.Id);
-            },
-            onExit: ExitApplication);
-
-        coordinator.GlobalStatusChanged += (status, desc) =>
+        SyncCoordinatorService coordinator;
+        try
         {
-            _trayService.UpdateStatus(status, desc);
-        };
+            coordinator = _serviceProvider.GetRequiredService<SyncCoordinatorService>();
+            Log("SyncCoordinatorService resolved.");
+        }
+        catch (Exception ex)
+        {
+            Log($"FATAL: Failed to resolve SyncCoordinatorService: {ex}");
+            throw;
+        }
+
+        try
+        {
+            Log("Resolving MainWindow...");
+            _mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+            MainWindow = _mainWindow;
+            Log("MainWindow resolved successfully.");
+        }
+        catch (Exception ex)
+        {
+            Log($"FATAL: Failed to resolve MainWindow: {ex}");
+            throw;
+        }
+
+        try
+        {
+            Log("Creating TrayFlyoutWindow...");
+            _trayFlyout = new TrayFlyoutWindow(coordinator, ShowMainWindow);
+            Log("TrayFlyoutWindow created.");
+
+            Log("Initializing TrayService...");
+            _trayService = new TrayService();
+            _trayService.Initialize(
+                onOpenApp: ShowMainWindow,
+                onToggleFlyout: () =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (_trayFlyout.IsVisible) _trayFlyout.Hide();
+                        else _trayFlyout.ShowNearTray();
+                    });
+                },
+                onReviewConflicts: () =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        ShowMainWindow();
+                        var mainVM = _serviceProvider.GetRequiredService<MainViewModel>();
+                        mainVM.NavigateCommand.Execute("Conflicts");
+                    });
+                },
+                onPauseResumeAll: () =>
+                {
+                    if (coordinator.OverallStatus == Core.Models.SyncStatus.Paused)
+                    {
+                        foreach (var p in coordinator.Pairs) coordinator.ResumePair(p.Id);
+                    }
+                    else
+                    {
+                        foreach (var p in coordinator.Pairs) coordinator.PausePair(p.Id);
+                    }
+                },
+                onSyncAllNow: () =>
+                {
+                    foreach (var p in coordinator.Pairs) _ = coordinator.TriggerSyncAsync(p.Id);
+                },
+                onExit: ExitApplication);
+
+            coordinator.GlobalStatusChanged += (status, desc) =>
+            {
+                Dispatcher.Invoke(() => _trayService?.UpdateStatus(status, desc));
+            };
+            Log("TrayService initialized.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error initializing Tray components: {ex}");
+        }
 
         // Determine if starting in background (e.g., from Windows Run key)
         bool startInBackground = false;
@@ -123,11 +168,26 @@ public partial class App : Application
 
         if (!startInBackground)
         {
+            Log("Calling ShowMainWindow()...");
             ShowMainWindow();
+            Log("ShowMainWindow() returned.");
         }
+
+        // Initialize background stores and sync coordinator asynchronously
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await coordinator.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing sync coordinator: {ex.Message}");
+            }
+        });
     }
 
-    private void ShowMainWindow()
+    public void ShowMainWindow()
     {
         if (_mainWindow != null)
         {
@@ -140,7 +200,7 @@ public partial class App : Application
         }
     }
 
-    private void ExitApplication()
+    public void ExitApplication()
     {
         _trayService?.Dispose();
         _trayFlyout?.Close();

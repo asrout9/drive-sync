@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DriveSync.Core.Engine;
@@ -19,6 +22,18 @@ public class WindowsSsdDetector : ISsdDetector
     private readonly ILogger<WindowsSsdDetector> _logger;
     private readonly System.Timers.Timer _pollingTimer;
     private readonly HashSet<string> _knownDrives = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _modelCache = new(StringComparer.OrdinalIgnoreCase);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern bool GetVolumeInformation(
+        string lpRootPathName,
+        StringBuilder? lpVolumeNameBuffer,
+        int nVolumeNameSize,
+        out uint lpVolumeSerialNumber,
+        out uint lpMaximumComponentLength,
+        out uint lpFileSystemFlags,
+        StringBuilder? lpFileSystemNameBuffer,
+        int nFileSystemNameSize);
 
     public event EventHandler<DriveInfoModel>? DriveConnected;
     public event EventHandler<string>? DriveDisconnected;
@@ -32,8 +47,8 @@ public class WindowsSsdDetector : ISsdDetector
         _pollingTimer.Elapsed += (s, e) => CheckDrives();
         _pollingTimer.Start();
 
-        // Initial snapshot of drives
-        CheckDrives(initial: true);
+        // Initial snapshot in background task to avoid blocking constructor
+        Task.Run(() => CheckDrives(initial: true));
     }
 
     public Task<IReadOnlyList<DriveInfoModel>> DetectRemovableDrivesAsync(CancellationToken ct = default)
@@ -169,6 +184,17 @@ public class WindowsSsdDetector : ISsdDetector
     {
         try
         {
+            string root = driveLetter.EndsWith("\\") ? driveLetter : driveLetter + "\\";
+            if (GetVolumeInformation(root, null, 0, out uint serial, out _, out _, null, 0))
+            {
+                return serial.ToString("X8");
+            }
+        }
+        catch { }
+
+        // Fallback to WMI if kernel32 fails
+        try
+        {
             string clean = driveLetter.TrimEnd('\\');
             using var searcher = new ManagementObjectSearcher($"SELECT VolumeSerialNumber FROM Win32_LogicalDisk WHERE DeviceID = '{clean}'");
             foreach (ManagementObject disk in searcher.Get())
@@ -182,22 +208,35 @@ public class WindowsSsdDetector : ISsdDetector
 
     private string QueryDiskModel(string driveLetter)
     {
+        string clean = driveLetter.TrimEnd('\\');
+        if (_modelCache.TryGetValue(clean, out var cached)) return cached;
+
         try
         {
-            string clean = driveLetter.TrimEnd('\\');
-            using var searcher = new ManagementObjectSearcher(
-                $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{clean}'}} WHERE AssocClass = Win32_LogicalDiskToPartition");
-            foreach (ManagementObject partition in searcher.Get())
+            var task = Task.Run(() =>
             {
-                using var diskSearcher = new ManagementObjectSearcher(
-                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partition["DeviceID"]}'}} WHERE AssocClass = Win32_DiskDriveToDiskPartition");
-                foreach (ManagementObject drive in diskSearcher.Get())
+                using var searcher = new ManagementObjectSearcher(
+                    $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{clean}'}} WHERE AssocClass = Win32_LogicalDiskToPartition");
+                foreach (ManagementObject partition in searcher.Get())
                 {
-                    return drive["Model"]?.ToString() ?? "External Drive";
+                    using var diskSearcher = new ManagementObjectSearcher(
+                        $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partition["DeviceID"]}'}} WHERE AssocClass = Win32_DiskDriveToDiskPartition");
+                    foreach (ManagementObject drive in diskSearcher.Get())
+                    {
+                        return drive["Model"]?.ToString() ?? "External Drive";
+                    }
                 }
+                return "External Drive";
+            });
+
+            if (task.Wait(1000))
+            {
+                _modelCache[clean] = task.Result;
+                return task.Result;
             }
         }
         catch { }
+
         return "External Drive";
     }
 
@@ -206,12 +245,21 @@ public class WindowsSsdDetector : ISsdDetector
         try
         {
             string clean = driveLetter.TrimEnd('\\');
-            using var searcher = new ManagementObjectSearcher(@"root\CIMV2\Security\MicrosoftVolumeEncryption",
-                $"SELECT ProtectionStatus FROM Win32_EncryptableVolume WHERE DriveLetter = '{clean}'");
-            foreach (ManagementObject vol in searcher.Get())
+            var task = Task.Run(() =>
             {
-                var status = Convert.ToInt32(vol["ProtectionStatus"]);
-                return status == 1; // 1 = Protected (Encrypted)
+                using var searcher = new ManagementObjectSearcher(@"root\CIMV2\Security\MicrosoftVolumeEncryption",
+                    $"SELECT ProtectionStatus FROM Win32_EncryptableVolume WHERE DriveLetter = '{clean}'");
+                foreach (ManagementObject vol in searcher.Get())
+                {
+                    var status = Convert.ToInt32(vol["ProtectionStatus"]);
+                    return status == 1; // 1 = Protected (Encrypted)
+                }
+                return false;
+            });
+
+            if (task.Wait(800))
+            {
+                return task.Result;
             }
         }
         catch { }

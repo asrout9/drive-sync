@@ -69,7 +69,13 @@ public class SyncPairsViewModel : ViewModelBase
         OpenFolderCommand = new RelayCommand<string>(OpenFolder);
         RefreshCommand = new RelayCommand(async () => await LoadPairsAsync());
 
-        _coordinator.PairsChanged += () => Application.Current.Dispatcher.Invoke(RefreshPairsList);
+        _coordinator.PairsChanged += () =>
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.HasShutdownStarted) return;
+            if (dispatcher.CheckAccess()) RefreshPairsList();
+            else dispatcher.BeginInvoke(RefreshPairsList);
+        };
         _coordinator.ProgressChanged += OnProgressReport;
 
         RefreshPairsList();
@@ -179,10 +185,21 @@ public class SyncPairsViewModel : ViewModelBase
 
     private void OnProgressReport(SyncProgressReport report)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted) return;
+
+        if (dispatcher.CheckAccess())
         {
             CurrentProgress = report.ProgressPercentage;
             ProgressText = $"{report.CurrentOperationDescription} ({report.ProcessedFilesCount}/{report.TotalFilesCount})";
-        });
+        }
+        else
+        {
+            dispatcher.BeginInvoke(() =>
+            {
+                CurrentProgress = report.ProgressPercentage;
+                ProgressText = $"{report.CurrentOperationDescription} ({report.ProcessedFilesCount}/{report.TotalFilesCount})";
+            });
+        }
     }
 }

@@ -17,7 +17,7 @@ public class NewPairWizardViewModel : ViewModelBase
     private readonly SyncCoordinatorService _coordinator;
     private readonly ISsdDetector _ssdDetector;
     private readonly ICloudCredentialStore _credStore;
-    private readonly Action _onSuccess;
+    public Action? OnSuccess { get; set; }
 
     private int _currentStep = 1;
     private string _pairName = "My Sync Pair";
@@ -198,12 +198,12 @@ public class NewPairWizardViewModel : ViewModelBase
         SyncCoordinatorService coordinator,
         ISsdDetector ssdDetector,
         ICloudCredentialStore credStore,
-        Action onSuccess)
+        Action? onSuccess = null)
     {
         _coordinator = coordinator;
         _ssdDetector = ssdDetector;
         _credStore = credStore;
-        _onSuccess = onSuccess;
+        OnSuccess = onSuccess;
 
         NextStepCommand = new RelayCommand(NextStep);
         PrevStepCommand = new RelayCommand(PrevStep);
@@ -380,7 +380,7 @@ public class NewPairWizardViewModel : ViewModelBase
 
         await _coordinator.SavePairAsync(pair);
         MessageBox.Show($"Sync pair '{pair.Name}' successfully created! Two-way synchronization is active.", "DriveSync Configured", MessageBoxButton.OK, MessageBoxImage.Information);
-        _onSuccess();
+        OnSuccess?.Invoke();
     }
 
     private SyncPair BuildSyncPair()

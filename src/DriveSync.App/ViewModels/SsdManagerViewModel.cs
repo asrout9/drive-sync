@@ -45,8 +45,22 @@ public class SsdManagerViewModel : ViewModelBase
         RefreshDrivesCommand = new RelayCommand(async () => await RefreshDrivesAsync());
         InitializeTokenCommand = new RelayCommand<DriveInfoModel>(async d => await InitializeTokenAsync(d));
 
-        _ssdDetector.DriveConnected += (s, d) => Application.Current.Dispatcher.Invoke(() => _ = RefreshDrivesAsync());
-        _ssdDetector.DriveDisconnected += (s, d) => Application.Current.Dispatcher.Invoke(() => _ = RefreshDrivesAsync());
+        _ssdDetector.DriveConnected += (s, d) =>
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(() => _ = RefreshDrivesAsync());
+            }
+        };
+        _ssdDetector.DriveDisconnected += (s, d) =>
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(() => _ = RefreshDrivesAsync());
+            }
+        };
 
         _ = RefreshDrivesAsync();
     }
