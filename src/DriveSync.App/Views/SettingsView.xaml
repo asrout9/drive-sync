@@ -1,0 +1,76 @@
+<UserControl x:Class="DriveSync.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="Application Settings &amp; Preferences" FontSize="24" FontWeight="Bold" Foreground="#F8FAFC"/>
+            <TextBlock Text="Configure background worker behavior, retention policies, and export sanitized diagnostic settings." FontSize="13" Foreground="#94A3B8" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="800" HorizontalAlignment="Left">
+                <!-- Startup & Background Service Card -->
+                <Border Background="#1E293B" CornerRadius="12" BorderBrush="#334155" BorderThickness="1" Padding="20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Background Operation &amp; System Startup" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                        <TextBlock Text="When enabled, DriveSync runs silently in your system notification tray and syncs changes automatically even while the main window is closed." FontSize="12" Foreground="#94A3B8" Margin="0,0,0,14" TextWrapping="Wrap"/>
+
+                        <CheckBox IsChecked="{Binding RunAtStartup}" Content="Start DriveSync automatically when signing in to Windows" Foreground="#F8FAFC" FontSize="13" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Retention & Storage Controls Card -->
+                <Border Background="#1E293B" CornerRadius="12" BorderBrush="#334155" BorderThickness="1" Padding="20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Version History &amp; Deleted Item Retention" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                        <TextBlock Text="Configure safeguards and retention limits for preserved revisions and recoverable deleted items." FontSize="12" Foreground="#94A3B8" Margin="0,0,0,14" TextWrapping="Wrap"/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max Preserved Revisions per File:" Foreground="#CBD5E1" VerticalAlignment="Center" FontSize="13"/>
+                            <TextBox Grid.Column="1" Text="{Binding MaxVersionsPerFile}" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" Padding="6" Height="32"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max Retention Duration (Days):" Foreground="#CBD5E1" VerticalAlignment="Center" FontSize="13"/>
+                            <TextBox Grid.Column="1" Text="{Binding RetentionDays}" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" Padding="6" Height="32"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max Archive Storage Budget (GB):" Foreground="#CBD5E1" VerticalAlignment="Center" FontSize="13"/>
+                            <TextBox Grid.Column="1" Text="{Binding MaxStorageGb}" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" Padding="6" Height="32"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Sanitized Configuration Export Card -->
+                <Border Background="#1E293B" CornerRadius="12" BorderBrush="#334155" BorderThickness="1" Padding="20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Diagnostic Export &amp; Audit Backup" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                        <TextBlock Text="Export a sanitized summary of your synchronization configurations and policy rules. Secrets, tokens, and personal credentials are fully excluded." FontSize="12" Foreground="#94A3B8" Margin="0,0,0,14" TextWrapping="Wrap"/>
+
+                        <Button Content="📤 Export Sanitized Config (JSON)" Command="{Binding ExportConfigCommand}" Background="#0284C7" Foreground="White" BorderThickness="0" Height="36" Padding="16,0" HorizontalAlignment="Left" Cursor="Hand"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

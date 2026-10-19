@@ -1,0 +1,12 @@
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+*.tmp
+*.log
+_test*/
+TestResults/

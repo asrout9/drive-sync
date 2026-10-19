@@ -1,0 +1,131 @@
+<Window x:Class="DriveSync.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:DriveSync.App.Views"
+        xmlns:vms="clr-namespace:DriveSync.App.ViewModels"
+        Title="DriveSync — Two-Way Synchronizer"
+        Height="780" Width="1200"
+        MinHeight="650" MinWidth="950"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F172A"
+        Foreground="#F8FAFC"
+        Closing="Window_Closing">
+
+    <Window.Resources>
+        <!-- DataTemplates for navigation switching -->
+        <DataTemplate DataType="{x:Type vms:SyncPairsViewModel}">
+            <views:SyncPairsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:NewPairWizardViewModel}">
+            <views:NewPairWizardView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:ConflictsViewModel}">
+            <views:ConflictsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:ActivityJournalViewModel}">
+            <views:ActivityJournalView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:RecoveryViewModel}">
+            <views:RecoveryView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:SsdManagerViewModel}">
+            <views:SsdManagerView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:CloudAccountsViewModel}">
+            <views:CloudAccountsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vms:SettingsViewModel}">
+            <views:SettingsView/>
+        </DataTemplate>
+
+        <!-- Nav Button Style -->
+        <Style x:Key="NavBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1E293B"/>
+                                <Setter Property="Foreground" Value="#F8FAFC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Navigation Sidebar -->
+        <Border Grid.Column="0" Background="#0A0F1D" BorderBrush="#1E293B" BorderThickness="0,0,1,0" Padding="14,20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Brand Header -->
+                <StackPanel Grid.Row="0" Margin="10,0,0,24">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="DriveSync" FontSize="20" FontWeight="Bold" Foreground="#F8FAFC"/>
+                        <Border Background="#0284C7" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="v1.0" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="Two-Way Synchronizer" FontSize="11" Foreground="#64748B" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <!-- Navigation Links -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="SYNCHRONIZATION" FontSize="10" FontWeight="Bold" Foreground="#475569" Margin="12,0,0,8"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="📁  Sync Pairs" Command="{Binding NavigateCommand}" CommandParameter="Pairs"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="➕  New Sync Pair" Command="{Binding NavigateCommand}" CommandParameter="NewPair"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="⚠️  Conflicts Hub" Command="{Binding NavigateCommand}" CommandParameter="Conflicts"/>
+
+                        <TextBlock Text="AUDIT &amp; SAFETY" FontSize="10" FontWeight="Bold" Foreground="#475569" Margin="12,18,0,8"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="📋  Activity &amp; Audit Log" Command="{Binding NavigateCommand}" CommandParameter="Activity"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="♻️  Version Recovery" Command="{Binding NavigateCommand}" CommandParameter="Recovery"/>
+
+                        <TextBlock Text="STORAGE &amp; PROVIDERS" FontSize="10" FontWeight="Bold" Foreground="#475569" Margin="12,18,0,8"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="💾  External SSD" Command="{Binding NavigateCommand}" CommandParameter="Ssd"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="☁️  Cloud Accounts" Command="{Binding NavigateCommand}" CommandParameter="Cloud"/>
+
+                        <TextBlock Text="SYSTEM" FontSize="10" FontWeight="Bold" Foreground="#475569" Margin="12,18,0,8"/>
+                        <Button Style="{StaticResource NavBtnStyle}" Content="⚙️  Settings" Command="{Binding NavigateCommand}" CommandParameter="Settings"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Bottom Status Indicator -->
+                <Border Grid.Row="2" Background="#0F172A" CornerRadius="8" Padding="12" BorderBrush="#1E293B" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="OVERALL STATUS" FontSize="9" FontWeight="Bold" Foreground="#64748B"/>
+                        <TextBlock Text="{Binding OverallStatus}" FontSize="11" FontWeight="SemiBold" Foreground="#10B981" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <ContentControl Grid.Column="1" Content="{Binding CurrentView}"/>
+    </Grid>
+</Window>
